@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ShadowTrace PRO | TG2Num Firebase</title>
+    <title>ShadowTrace PRO | TG + UserID Search</title>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -17,7 +17,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+            font-family: 'Segoe UI', 'Poppins', sans-serif;
         }
 
         body {
@@ -148,7 +148,6 @@
             cursor: pointer;
         }
         
-        /* Redeem Section */
         .redeem-section-main {
             background: linear-gradient(135deg, rgba(5, 150, 105, 0.2), rgba(5, 150, 105, 0.05));
             border: 2px solid #10b981;
@@ -370,6 +369,37 @@
         
         .result-found { border-left-color: #10b981; background: rgba(16,185,129,0.1); }
         .result-error { border-left-color: #ef4444; background: rgba(239,68,68,0.1); }
+        
+        .search-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+        
+        .search-tab {
+            padding: 8px 16px;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            border-radius: 20px;
+            margin: 0;
+            width: auto;
+        }
+        
+        .search-tab.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .tg-search-mode {
+            display: none;
+        }
+        
+        .tg-search-mode.active-mode {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -381,7 +411,7 @@
         <div class="header">
             <div class="logo">
                 <h1><i class="fab fa-telegram"></i> TG2Num PRO | ShadowTrace</h1>
-                <p>Firebase Cloud · Real API · Instant OSINT</p>
+                <p>Firebase · Real API · Username + UserID Search</p>
             </div>
             <div class="user-panel">
                 <span><i class="fas fa-user"></i> <span id="userNameDisplay">Master User</span></span>
@@ -397,9 +427,6 @@
                 <input type="text" id="redeemCodeInput" placeholder="Enter redeem code">
                 <button id="redeemMainBtn"><i class="fas fa-ticket-alt"></i> Redeem Now!</button>
             </div>
-            <p style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">
-                <i class="fas fa-info-circle"></i> Contact @RolexBot00 to purchase codes
-            </p>
         </div>
         
         <!-- Developer Contact -->
@@ -426,16 +453,44 @@
                 </div>
             </div>
             
-            <!-- Telegram Card -->
+            <!-- Telegram Card with Dual Search -->
             <div class="card">
-                <h2><i class="fab fa-telegram"></i> TG to Number</h2>
-                <div class="input-group">
-                    <i class="fas fa-at"></i>
-                    <input type="text" id="tgInput" placeholder="Telegram username or phone number">
+                <h2><i class="fab fa-telegram"></i> TG to Number / ID</h2>
+                
+                <!-- Search Tabs -->
+                <div class="search-tabs">
+                    <div class="search-tab active" data-mode="username">🔍 Username</div>
+                    <div class="search-tab" data-mode="userid">🆔 User ID</div>
+                    <div class="search-tab" data-mode="phone">📞 Phone</div>
                 </div>
+                
+                <!-- Username Search Mode -->
+                <div id="usernameMode" class="tg-search-mode active-mode">
+                    <div class="input-group">
+                        <i class="fab fa-telegram"></i>
+                        <input type="text" id="tgUsername" placeholder="Telegram username (e.g., @username or username)">
+                    </div>
+                </div>
+                
+                <!-- User ID Search Mode -->
+                <div id="useridMode" class="tg-search-mode">
+                    <div class="input-group">
+                        <i class="fas fa-id-card"></i>
+                        <input type="text" id="tgUserId" placeholder="Telegram User ID (e.g., 7420311171)">
+                    </div>
+                </div>
+                
+                <!-- Phone Search Mode -->
+                <div id="phoneMode" class="tg-search-mode">
+                    <div class="input-group">
+                        <i class="fas fa-phone"></i>
+                        <input type="text" id="tgPhone" placeholder="Phone number (e.g., 9876543210)">
+                    </div>
+                </div>
+                
                 <button id="searchTgBtn"><i class="fas fa-chart-line"></i> Trace (1 Credit)</button>
                 <div class="result-area" id="tgResult">
-                    📞 Linked mobile number will appear here
+                    📞 Linked information will appear here
                     <button class="copy-btn" data-target="tgResult"><i class="far fa-copy"></i> Copy</button>
                 </div>
             </div>
@@ -484,7 +539,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         
-        // REAL API CONFIGURATIONS (As per your data)
+        // API Endpoints
         const VEHICLE_API_URL = "https://rootx-osint.in/?type=v_num&key=1WEEK_DEMO_ROOTX_INDIA&query=";
         const TG_API_URL = "https://rootx-osint.in/?type=tg_num&key=mr_off_X_Rolex&query=";
         
@@ -493,6 +548,7 @@
         let searchHistory = [];
         let redeemCodes = new Map();
         let adminMode = false;
+        let currentTGMode = "username";
         
         function showToast(msg, isError = false) {
             const toast = document.createElement("div");
@@ -606,7 +662,7 @@
             container.innerHTML = html;
         }
         
-        // REAL VEHICLE SEARCH API
+        // VEHICLE SEARCH
         async function searchVehicle() {
             const query = document.getElementById("vehicleInput").value.trim().toUpperCase();
             if (!query) { showToast("❌ Enter vehicle number", true); return; }
@@ -618,36 +674,48 @@
             try {
                 const response = await fetch(VEHICLE_API_URL + encodeURIComponent(query));
                 const data = await response.json();
-                console.log("Vehicle API Response:", data);
+                console.log("Vehicle API:", data);
                 
-                // Check if data found (based on your actual API response)
                 if (data.VEHICLE_NUMBER && data.VEHICLE_NUMBER.success === true) {
                     userCredits--;
                     await saveUserData();
                     updateUI();
                     
-                    const output = `✅ VEHICLE FOUND!\n📞 Mobile: ${data.VEHICLE_NUMBER.mobile}\n🚗 Vehicle: ${data.VEHICLE_NUMBER.vehicle}\n📊 Requests Left: ${data.req_left}/${data.req_total}\n⏰ Expiry: ${data.expiry}\n👨‍💻 Developer: ${data.developer}`;
+                    const output = `✅ VEHICLE FOUND!\n📞 Mobile: ${data.VEHICLE_NUMBER.mobile}\n🚗 Vehicle: ${data.VEHICLE_NUMBER.vehicle}\n📊 Requests Left: ${data.req_left}/${data.req_total}\n👨‍💻 Developer: ${data.developer}`;
                     resultDiv.innerHTML = output + "<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
                     resultDiv.classList.add("result-found");
                     await addLog("Vehicle", query, data.VEHICLE_NUMBER.mobile);
                     showToast(`✅ Found! -1 credit (${userCredits} left)`);
                 } else {
-                    resultDiv.innerHTML = "❌ No record found for this vehicle number.\n💡 Credit NOT deducted<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
+                    resultDiv.innerHTML = "❌ No record found.\n💡 Try: WB74BH4531, HR58E0868\n💡 Credit NOT deducted<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
                     resultDiv.classList.add("result-error");
                     showToast("No data found - Credit NOT deducted", true);
                 }
             } catch (err) {
-                console.error("API Error:", err);
                 resultDiv.innerHTML = `🌐 Network Error: ${err.message}\n💡 Credit NOT deducted<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>`;
                 resultDiv.classList.add("result-error");
                 showToast("API Error - Credit NOT deducted", true);
             }
         }
         
-        // REAL TELEGRAM SEARCH API
+        // TELEGRAM SEARCH - Supports Username, UserID, Phone
         async function searchTelegram() {
-            const query = document.getElementById("tgInput").value.trim();
-            if (!query) { showToast("❌ Enter Telegram ID or number", true); return; }
+            let query = "";
+            let searchType = "";
+            
+            if (currentTGMode === "username") {
+                query = document.getElementById("tgUsername").value.trim();
+                searchType = "Username";
+                if (query.startsWith("@")) query = query.substring(1);
+            } else if (currentTGMode === "userid") {
+                query = document.getElementById("tgUserId").value.trim();
+                searchType = "UserID";
+            } else {
+                query = document.getElementById("tgPhone").value.trim();
+                searchType = "Phone";
+            }
+            
+            if (!query) { showToast(`❌ Enter ${searchType} to search`, true); return; }
             if (userCredits <= 0) { showToast("❌ Insufficient credits!", true); return; }
             
             const resultDiv = document.getElementById("tgResult");
@@ -658,25 +726,25 @@
                 const data = await response.json();
                 console.log("TG API Response:", data);
                 
-                // Check for success response (based on your actual API)
+                // Check for successful response
                 if (data.success === true && data.number) {
                     userCredits--;
                     await saveUserData();
                     updateUI();
                     
-                    const output = `✅ TG LINKED NUMBER FOUND!\n📞 Mobile: +${data.country_code} ${data.number}\n🌍 Country: ${data.country}\n🆔 TG ID: ${data.tg_id}\n📊 Requests Left: ${data.req_left}/${data.req_total}\n⏰ Expiry: ${data.expiry}\n👨‍💻 Developer: ${data.developer}`;
+                    const output = `✅ TG INFORMATION FOUND!\n\n📞 Mobile: +${data.country_code} ${data.number}\n🌍 Country: ${data.country}\n🆔 Telegram ID: ${data.tg_id}\n👤 Searched: ${searchType} - ${query}\n📊 API Left: ${data.req_left}/${data.req_total}\n⏰ Expiry: ${data.expiry}\n👨‍💻 Dev: ${data.developer}`;
                     resultDiv.innerHTML = output + "<button class='copy-btn' data-target='tgResult'>📋 Copy</button>";
                     resultDiv.classList.add("result-found");
-                    await addLog("Telegram", query, data.number);
+                    await addLog("Telegram", `${searchType}:${query}`, data.number);
                     showToast(`✅ Found! -1 credit (${userCredits} left)`);
                 } 
                 else if (data.status === "error" || data.message) {
-                    resultDiv.innerHTML = `⚠️ ${data.message || "Service temporarily unavailable"}\n📊 Requests Left: ${data.req_left || 'N/A'}\n💡 Credit NOT deducted<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
+                    resultDiv.innerHTML = `⚠️ ${data.message || "Service temporarily unavailable"}\n📊 Requests Left: ${data.req_left || 'N/A'}\n💡 Credit NOT deducted\n\n💡 Try: 7420311171 or @username` + "<button class='copy-btn' data-target='tgResult'>📋 Copy</button>";
                     resultDiv.classList.add("result-error");
                     showToast(data.message || "Service error - Credit NOT deducted", true);
                 }
                 else {
-                    resultDiv.innerHTML = "❌ No linked number found\n💡 Credit NOT deducted<button class='copy-btn' data-target='tgResult'>📋 Copy</button>";
+                    resultDiv.innerHTML = `❌ No information found for this ${searchType}\n💡 Try different search mode\n💡 Credit NOT deducted<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
                     resultDiv.classList.add("result-error");
                     showToast("No data found - Credit NOT deducted", true);
                 }
@@ -686,6 +754,33 @@
                 resultDiv.classList.add("result-error");
                 showToast("API Error - Credit NOT deducted", true);
             }
+        }
+        
+        // Tab Switching for TG Search
+        function switchTGMode(mode) {
+            currentTGMode = mode;
+            
+            // Hide all modes
+            document.getElementById("usernameMode").classList.remove("active-mode");
+            document.getElementById("useridMode").classList.remove("active-mode");
+            document.getElementById("phoneMode").classList.remove("active-mode");
+            
+            // Show selected mode
+            if (mode === "username") {
+                document.getElementById("usernameMode").classList.add("active-mode");
+            } else if (mode === "userid") {
+                document.getElementById("useridMode").classList.add("active-mode");
+            } else {
+                document.getElementById("phoneMode").classList.add("active-mode");
+            }
+            
+            // Update tab styles
+            document.querySelectorAll(".search-tab").forEach(tab => {
+                tab.classList.remove("active");
+                if (tab.getAttribute("data-mode") === mode) {
+                    tab.classList.add("active");
+                }
+            });
         }
         
         // Admin Functions
@@ -761,6 +856,13 @@
             window.open("https://t.me/RolexBot00", "_blank");
         });
         
+        // Tab switching
+        document.querySelectorAll(".search-tab").forEach(tab => {
+            tab.addEventListener("click", () => {
+                switchTGMode(tab.getAttribute("data-mode"));
+            });
+        });
+        
         // Particles
         function createParticles() {
             const container = document.getElementById("particlesContainer");
@@ -780,6 +882,7 @@
         createParticles();
         loadUserData();
         loadRedeemCodes();
+        switchTGMode("username");
         setTimeout(() => showToast(`🚀 Real APIs Active! ${userCredits} credits`), 500);
     </script>
 </body>
