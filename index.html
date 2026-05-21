@@ -27,7 +27,6 @@
             overflow-x: hidden;
         }
         
-        /* Dynamic gradient background with moving particles */
         .animated-bg {
             position: fixed;
             top: 0;
@@ -54,7 +53,6 @@
             100% { transform: rotate(360deg); }
         }
         
-        /* Floating particles */
         .particles {
             position: fixed;
             top: 0;
@@ -91,7 +89,6 @@
             }
         }
         
-        /* Glow orbs */
         .glow-orb {
             position: fixed;
             width: 60vmax;
@@ -126,7 +123,6 @@
             max-width: 1400px;
             margin: 0 auto;
             position: relative;
-            backdrop-filter: blur(0px);
         }
 
         .header {
@@ -222,7 +218,6 @@
             border-color: #facc15;
             transform: translateY(-2px);
             box-shadow: 0 0 20px rgba(250,204,21,0.2);
-            background: linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95));
         }
         
         .dev-username {
@@ -232,7 +227,6 @@
             border-radius: 40px;
             color: #facc15;
             font-family: monospace;
-            letter-spacing: 0.5px;
         }
 
         .finder-grid {
@@ -256,7 +250,6 @@
             border-color: #2dd4bf80;
             transform: translateY(-5px);
             background: rgba(18, 25, 45, 0.75);
-            box-shadow: 0 12px 28px rgba(0,0,0,0.3);
         }
         
         .card h2 {
@@ -320,6 +313,7 @@
             font-size: 0.9rem;
             font-family: monospace;
             backdrop-filter: blur(4px);
+            min-height: 120px;
         }
 
         .copy-btn {
@@ -431,13 +425,23 @@
             .user-panel { justify-content: center; }
         }
         
-        .credit-badge-big {
-            font-size: 1rem;
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <!-- Animated Background Elements -->
     <div class="animated-bg"></div>
     <div class="glow-orb" style="top: -20%; left: -20%;"></div>
     <div class="glow-orb glow-orb-2"></div>
@@ -456,7 +460,6 @@
             </div>
         </div>
 
-        <!-- Credit Banner -->
         <div class="developer-contact" id="developerContactBtn">
             <div class="dev-info">
                 <span>🤝 Need more credits? Contact Developer</span>
@@ -541,19 +544,18 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         
-        // Constants
+        // API Constants
         const VEHICLE_API_KEY = "1WEEK_DEMO_ROOTX_INDIA";
         const TG_API_KEY = "mr_off_X_Rolex";
         const DEV_TELEGRAM = "RolexBot00";
         
-        // Fixed Single User (No Login Required)
+        // User Data
         const USER_ID = "master_tg2num_user";
         let userCredits = 0;
         let searchHistory = [];
         let redeemCodes = new Map();
         let adminMode = false;
         
-        // Helper functions
         function showToast(msg, isError = false) {
             const toast = document.createElement("div");
             toast.className = "toast";
@@ -563,7 +565,6 @@
             setTimeout(() => toast.remove(), 3000);
         }
         
-        // Save user data to Firebase permanently
         async function saveUserData() {
             try {
                 await db.collection("users").doc(USER_ID).set({
@@ -572,12 +573,12 @@
                     searchHistory: searchHistory,
                     lastActive: new Date().toISOString()
                 }, { merge: true });
+                console.log("Data saved, credits:", userCredits);
             } catch (e) {
                 console.error("Save error:", e);
             }
         }
         
-        // Load user data from Firebase
         async function loadUserData() {
             try {
                 const doc = await db.collection("users").doc(USER_ID).get();
@@ -592,6 +593,7 @@
                 }
                 updateUI();
                 renderLogs();
+                console.log("Loaded credits:", userCredits);
             } catch (e) {
                 console.error("Load error:", e);
                 userCredits = 15;
@@ -599,7 +601,6 @@
             }
         }
         
-        // Load all active redeem codes
         async function loadRedeemCodes() {
             try {
                 const snapshot = await db.collection("redeemCodes").get();
@@ -616,7 +617,6 @@
             }
         }
         
-        // Generate new redeem code (admin only)
         async function generateRedeemCode(code, credits) {
             try {
                 await db.collection("redeemCodes").doc(code).set({
@@ -632,7 +632,6 @@
             }
         }
         
-        // Redeem a code
         async function redeemCode(code) {
             try {
                 const docRef = db.collection("redeemCodes").doc(code);
@@ -652,7 +651,6 @@
             }
         }
         
-        // Add search log permanently
         async function addLog(type, query, result) {
             searchHistory.unshift({ type, query, result: result.substring(0, 80), time: new Date().toLocaleString() });
             if (searchHistory.length > 25) searchHistory.pop();
@@ -669,7 +667,8 @@
         function renderLogs() {
             const container = document.getElementById("searchLogs");
             if (!searchHistory.length) { container.innerHTML = "No searches yet. Your history will be saved forever."; return; }
-            let html = "<table style='width:100%'><tr><th>Time</th><th>Type</th><th>Query</th><th>Result</th></tr>";
+            let html = "<table style='width:100%'>";
+            html += "<tr><th>Time</th><th>Type</th><th>Query</th><th>Result</th></tr>";
             searchHistory.slice(0, 12).forEach(log => {
                 html += `<tr><td>${log.time}</td><td>${log.type}</td><td>${log.query}</td><td>${log.result}</td></tr>`;
             });
@@ -688,85 +687,106 @@
             container.innerHTML = html;
         }
         
-        // Vehicle Search API
+        // VEHICLE SEARCH - CREDIT DEDUCTION FIXED
         async function searchVehicle() {
             const query = document.getElementById("vehicleInput").value.trim().toUpperCase();
-            if (!query) { showToast("Enter vehicle number", true); return; }
-            if (userCredits <= 0) { showToast("❌ Insufficient credits! Contact @RolexBot00 to buy credits", true); return; }
+            if (!query) { showToast("❌ Enter vehicle number", true); return; }
             
-            userCredits--;
-            await saveUserData();
-            updateUI();
+            // Check credits BEFORE deducting
+            if (userCredits <= 0) { 
+                showToast("❌ Insufficient credits! Contact @RolexBot00 to buy credits", true); 
+                return; 
+            }
             
+            // Show loading state
             const resultDiv = document.getElementById("vehicleResult");
-            resultDiv.innerHTML = "⏳ Contacting API...<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
+            const originalContent = resultDiv.innerHTML;
+            resultDiv.innerHTML = '<div class="loading-spinner"></div> Searching API...<button class="copy-btn" data-target="vehicleResult">📋 Copy</button>';
             
             try {
-                const response = await fetch(`https://rootx-osint.in/?type=v_num&key=${VEHICLE_API_KEY}&query=${encodeURIComponent(query)}`);
-                const data = await response.json();
+                // Make API call FIRST to verify data exists
+                const apiUrl = `https://rootx-osint.in/?type=v_num&key=${VEHICLE_API_KEY}&query=${encodeURIComponent(query)}`;
+                console.log("Calling Vehicle API:", apiUrl);
                 
-                if (data.VEHICLE_NUMBER && data.VEHICLE_NUMBER.success === true) {
-                    const mobile = data.VEHICLE_NUMBER.mobile;
-                    const vehicle = data.VEHICLE_NUMBER.vehicle;
-                    const output = `✅ VEHICLE FOUND!\n📞 Mobile: ${mobile}\n🚗 Vehicle: ${vehicle}\n📊 API Left: ${data.req_left}\n👨‍💻 Dev: ${data.developer}`;
-                    resultDiv.innerHTML = output + "<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
-                    await addLog("Vehicle", query, mobile);
-                    showToast("✅ Result found! You can copy the number.");
-                } else {
-                    resultDiv.innerHTML = "❌ No record found for this vehicle number.<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
-                    userCredits++;
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                console.log("Vehicle API Response:", data);
+                
+                // Check if data found
+                if (data.VEHICLE_NUMBER && data.VEHICLE_NUMBER.success === true && data.VEHICLE_NUMBER.mobile) {
+                    // DATA FOUND - NOW DEDUCT CREDIT
+                    userCredits--;
                     await saveUserData();
                     updateUI();
-                    showToast("No data found, credit refunded", true);
+                    
+                    const mobile = data.VEHICLE_NUMBER.mobile;
+                    const vehicle = data.VEHICLE_NUMBER.vehicle;
+                    const output = `✅ VEHICLE FOUND!\n📞 Mobile: ${mobile}\n🚗 Vehicle: ${vehicle}\n📊 API Left: ${data.req_left || 'N/A'}\n👨‍💻 Dev: ${data.developer || 'RootX'}`;
+                    resultDiv.innerHTML = output + "<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
+                    await addLog("Vehicle", query, mobile);
+                    showToast(`✅ Credit deducted! Found: ${mobile}`);
+                } else {
+                    // NO DATA - NO CREDIT DEDUCTION
+                    resultDiv.innerHTML = "❌ No record found for this vehicle number.\n💡 Credit not deducted.<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>";
+                    showToast("No data found - Credit NOT deducted", true);
                 }
             } catch (err) {
-                resultDiv.innerHTML = `🌐 Network Error: ${err.message}<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>`;
-                userCredits++;
-                await saveUserData();
-                updateUI();
-                showToast("Network error, credit refunded", true);
+                console.error("Vehicle API Error:", err);
+                resultDiv.innerHTML = `🌐 Network Error: ${err.message}\n💡 Credit not deducted.<button class='copy-btn' data-target='vehicleResult'>📋 Copy</button>`;
+                showToast("Network error - Credit NOT deducted", true);
             }
         }
         
-        // Telegram Search API
+        // TELEGRAM SEARCH - CREDIT DEDUCTION FIXED
         async function searchTelegram() {
             const query = document.getElementById("tgInput").value.trim();
-            if (!query) { showToast("Enter Telegram ID or number", true); return; }
-            if (userCredits <= 0) { showToast("❌ Insufficient credits! Redeem or contact @RolexBot00", true); return; }
+            if (!query) { showToast("❌ Enter Telegram ID or number", true); return; }
             
-            userCredits--;
-            await saveUserData();
-            updateUI();
+            if (userCredits <= 0) { 
+                showToast("❌ Insufficient credits! Redeem or contact @RolexBot00", true); 
+                return; 
+            }
             
             const resultDiv = document.getElementById("tgResult");
-            resultDiv.innerHTML = "⏳ Fetching TG data...<button class='copy-btn' data-target='tgResult'>📋 Copy</button>";
+            resultDiv.innerHTML = '<div class="loading-spinner"></div> Fetching TG data...<button class="copy-btn" data-target="tgResult">📋 Copy</button>';
             
             try {
-                const response = await fetch(`https://rootx-osint.in/?type=tg_num&key=${TG_API_KEY}&query=${encodeURIComponent(query)}`);
-                const data = await response.json();
+                const apiUrl = `https://rootx-osint.in/?type=tg_num&key=${TG_API_KEY}&query=${encodeURIComponent(query)}`;
+                console.log("Calling TG API:", apiUrl);
                 
-                if (data.status === "error") {
-                    resultDiv.innerHTML = `⚠️ ${data.message}\n📊 Requests Left: ${data.req_left}\n⏰ ${data.timestamp}<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
-                    userCredits++;
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                console.log("TG API Response:", data);
+                
+                // Check various response formats
+                if (data.status === "success" && data.mobile) {
+                    // DATA FOUND - DEDUCT CREDIT
+                    userCredits--;
                     await saveUserData();
                     updateUI();
-                    showToast("TG API temporarily unavailable, credit refunded", true);
-                } else if (data.mobile) {
+                    
+                    resultDiv.innerHTML = `✅ TG Linked Number: ${data.mobile}\n📊 Requests Left: ${data.req_left || 'N/A'}<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
+                    await addLog("Telegram", query, data.mobile);
+                    showToast(`✅ Credit deducted! Number: ${data.mobile}`);
+                } 
+                else if (data.mobile) {
+                    // Alternative success format
+                    userCredits--;
+                    await saveUserData();
+                    updateUI();
                     resultDiv.innerHTML = `✅ TG Linked Number: ${data.mobile}<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
                     await addLog("Telegram", query, data.mobile);
-                    showToast("Mobile number fetched successfully!");
-                } else {
-                    resultDiv.innerHTML = "❌ No linked number found<button class='copy-btn' data-target='tgResult'>📋 Copy</button>";
-                    userCredits++;
-                    await saveUserData();
-                    updateUI();
+                    showToast(`✅ Credit deducted! Found: ${data.mobile}`);
+                }
+                else {
+                    // NO DATA - NO DEDUCTION
+                    resultDiv.innerHTML = "❌ No linked number found\n💡 Credit not deducted.<button class='copy-btn' data-target='tgResult'>📋 Copy</button>";
+                    showToast("No data found - Credit NOT deducted", true);
                 }
             } catch (err) {
-                resultDiv.innerHTML = `🌐 Network Error: ${err.message}<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
-                userCredits++;
-                await saveUserData();
-                updateUI();
-                showToast("Network error, credit refunded", true);
+                console.error("TG API Error:", err);
+                resultDiv.innerHTML = `🌐 Network Error: ${err.message}\n💡 Credit not deducted.<button class='copy-btn' data-target='tgResult'>📋 Copy</button>`;
+                showToast("Network error - Credit NOT deducted", true);
             }
         }
         
@@ -792,7 +812,7 @@
             userCredits += 10;
             await saveUserData();
             updateUI();
-            showToast("Added 10 credits to Master User");
+            showToast("✅ Added 10 credits to Master User");
             await addLog("Admin", "add_credits", "+10 credits");
         }
         
@@ -804,14 +824,14 @@
             showToast("Search logs cleared");
         }
         
-        // Copy to clipboard
+        // Copy functionality
         document.querySelectorAll(".copy-btn").forEach(btn => {
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
                 const targetId = btn.getAttribute("data-target");
                 const resultDiv = document.getElementById(targetId);
-                let text = resultDiv.innerText.replace("📋 Copy", "").trim();
-                if (text && !text.includes("Enter vehicle") && !text.includes("TG result") && !text.includes("Contacting API")) {
+                let text = resultDiv.innerText.replace("📋 Copy", "").replace("✓ Copied!", "").trim();
+                if (text && !text.includes("Enter vehicle") && !text.includes("TG result") && !text.includes("Searching")) {
                     navigator.clipboard.writeText(text);
                     showToast("✅ Result copied to clipboard!");
                     btn.innerText = "✓ Copied!";
@@ -853,7 +873,7 @@
             showToast("Opening Telegram to buy credits...");
         });
         
-        // Generate dynamic particles
+        // Create particles
         function createParticles() {
             const container = document.getElementById("particlesContainer");
             for (let i = 0; i < 65; i++) {
@@ -870,11 +890,13 @@
             }
         }
         
-        // Initialization
+        // Initialize
         createParticles();
         loadUserData();
         loadRedeemCodes();
-        showToast("🚀 Welcome to ShadowTrace PRO! Credits: " + userCredits);
+        setTimeout(() => {
+            showToast(`🚀 Welcome! You have ${userCredits} credits`);
+        }, 500);
     </script>
 </body>
-    </html>
+                </html>
